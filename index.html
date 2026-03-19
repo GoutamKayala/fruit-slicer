@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gesture Fruit Slicer - Web Edition</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- MediaPipe CDNs -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div id="game-container">
+        <!-- Hidden Video for MediaPipe -->
+        <video id="input-video" playsinline style="display: none;"></video>
+        
+        <!-- Main Game Canvas -->
+        <canvas id="game-canvas"></canvas>
+
+        <!-- UI Overlays -->
+        <div id="hud">
+            <div id="score-container">SCORE: <span id="score">0</span></div>
+            <div id="best-container">BEST: <span id="best">0</span></div>
+            <div id="lives-container"></div>
+        </div>
+
+        <!-- Menus -->
+        <div id="menu" class="overlay">
+            <h1>DIFFICULTY SLICER</h1>
+            <p>WEB EDITION</p>
+            <button onclick="startGame()">PRESS TO START</button>
+        </div>
+
+        <div id="level-select" class="overlay hidden">
+            <h2>SELECT DIFFICULTY</h2>
+            <div class="level-btns">
+                <button onclick="setLevel(0)" class="easy">EASY</button>
+                <button onclick="setLevel(1)" class="medium">MEDIUM</button>
+                <button onclick="setLevel(2)" class="hard">HARD</button>
+            </div>
+        </div>
+
+        <div id="game-over" class="overlay hidden">
+            <h1>GAME OVER</h1>
+            <h2 id="final-score">SCORE: 0</h2>
+            <button onclick="showLevelSelect()">PLAY AGAIN</button>
+        </div>
+
+        <!-- Loading Screen -->
+        <div id="loading" class="overlay">
+            <div class="spinner"></div>
+            <p>CALIBRATING DOJO...</p>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
