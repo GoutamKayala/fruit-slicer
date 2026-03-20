@@ -29,9 +29,9 @@ let lives = 5;
 let difficulty = 1; 
 
 const LEVEL_CONFIGS = [
-    { name: "EASY", gravity: 0.12, spawnRate: 0.015, velThreshold: 12, bombRate: 0.003 },
-    { name: "MEDIUM", gravity: 0.22, spawnRate: 0.03, velThreshold: 18, bombRate: 0.006 },
-    { name: "HARD", gravity: 0.35, spawnRate: 0.045, velThreshold: 25, bombRate: 0.012 }
+    { name: "EASY", gravity: 0.14, spawnInterval: 1400, minVel: 4, bombRate: 0.05, fruitRadius: 45 },
+    { name: "MEDIUM", gravity: 0.22, spawnInterval: 1000, minVel: 6, bombRate: 0.12, fruitRadius: 38 },
+    { name: "HARD", gravity: 0.35, spawnInterval: 750, minVel: 8, bombRate: 0.22, fruitRadius: 32 }
 ];
 
 // Entities
@@ -40,6 +40,11 @@ let bombs = [];
 let particles = [];
 let trail = []; 
 const TRAIL_MAX = 10;
+let lastSpawnTime = 0;
+
+// Smoothing
+let posHistory = [];
+const SMOOTHING_FACTOR = 3;
 
 // --- Background System ---
 class DojoBackground {
@@ -90,14 +95,23 @@ let rawLandmarks = null;
 hands.onResults((results) => {
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
         rawLandmarks = results.multiHandLandmarks[0];
-        // Index tip (landmark 8)
-        currentHand = {
-            x: rawLandmarks[8].x * WIDTH, 
-            y: rawLandmarks[8].y * HEIGHT
-        };
+        
+        // MIRROR FIX: Invert X (1 - x)
+        const rawX = (1 - rawLandmarks[8].x) * WIDTH;
+        const rawY = rawLandmarks[8].y * HEIGHT;
+
+        // Smoothing: Moving Average
+        posHistory.push({x: rawX, y: rawY});
+        if (posHistory.length > SMOOTHING_FACTOR) posHistory.shift();
+
+        const avgX = posHistory.reduce((s, p) => s + p.x, 0) / posHistory.length;
+        const avgY = posHistory.reduce((s, p) => s + p.y, 0) / posHistory.length;
+
+        currentHand = { x: avgX, y: avgY };
     } else {
         currentHand = null;
         rawLandmarks = null;
+        posHistory = [];
     }
     document.getElementById('loading').classList.add('hidden');
 });
@@ -264,10 +278,16 @@ function checkCollisions() {
     for (let i = 0; i < trail.length - 1; i++) {
         const p1 = trail[i];
         const p2 = trail[i+1];
+        
+        // Velocity Check: Only slice if moving fast enough
+        const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        if (dist < config.minVel) continue;
+
         const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
 
         fruits.forEach(f => {
-            if (!f.isSliced && lineCircleIntersect(p1, p2, f, f.radius + 20)) {
+            // Increased Hitbox for better feel (+40 pixels buffer)
+            if (!f.isSliced && lineCircleIntersect(p1, p2, f, f.radius + 40)) {
                 f.isSliced = true;
                 f.sliceAngle = angle;
                 score += 10;
@@ -312,9 +332,19 @@ function gameLoop() {
 
     if (gameState === STATE_PLAYING) {
         const config = LEVEL_CONFIGS[difficulty];
-        // Spawn
-        if (Math.random() < config.spawnRate + (score/10000)) fruits.push(new Fruit(config.gravity));
-        if (Math.random() < config.bombRate) bombs.push(new Bomb(config.gravity));
+        const currentTime = performance.now();
+
+        // Time-Based Spawn
+        if (currentTime - lastSpawnTime > config.spawnInterval) {
+            if (Math.random() < config.bombRate) {
+                bombs.push(new Bomb(config.gravity));
+            } else {
+                const f = new Fruit(config.gravity);
+                f.radius = config.fruitRadius; // Override radius based on difficulty
+                fruits.push(f);
+            }
+            lastSpawnTime = currentTime;
+        }
 
         // Update/Draw
         fruits = fruits.filter(f => {
