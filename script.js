@@ -9,6 +9,12 @@ const videoElement = document.getElementById('input-video');
 const pipCanvas = document.getElementById('pip-canvas');
 const pipCtx = pipCanvas.getContext('2d');
 
+// --- Offscreen Canvas for Mirroring ---
+const offscreenCanvas = document.createElement('canvas');
+const offCtx = offscreenCanvas.getContext('2d');
+offscreenCanvas.width = 640;
+offscreenCanvas.height = 480;
+
 // --- Configs ---
 const WIDTH = 1280;
 const HEIGHT = 720;
@@ -96,8 +102,8 @@ hands.onResults((results) => {
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
         rawLandmarks = results.multiHandLandmarks[0];
         
-        // MIRROR FIX: Invert X (1 - x)
-        const rawX = (1 - rawLandmarks[8].x) * WIDTH;
+        // NO MANUAL INVERSION NEEDED: Frame is already flipped
+        const rawX = rawLandmarks[8].x * WIDTH;
         const rawY = rawLandmarks[8].y * HEIGHT;
 
         // Smoothing: Moving Average
@@ -118,7 +124,13 @@ hands.onResults((results) => {
 
 const camera = new Camera(videoElement, {
     onFrame: async () => {
-        await hands.send({ image: videoElement });
+        // MIRROR FIX: Flip the frame BEFORE sending to MediaPipe
+        offCtx.save();
+        offCtx.scale(-1, 1);
+        offCtx.drawImage(videoElement, -640, 0, 640, 480);
+        offCtx.restore();
+
+        await hands.send({ image: offscreenCanvas });
         drawPiP();
     },
     width: 640,
@@ -130,13 +142,12 @@ camera.start();
 function drawPiP() {
     pipCtx.clearRect(0, 0, 160, 160);
     
-    // Draw Video Feed (Center Cropped)
+    // Draw from the already-flipped offscreen canvas
     // Source: 640x480. Target: 160x160 circle.
-    // Mirroring is handled by CSS transform on container
     const size = 480;
     const sx = (640 - size) / 2;
     const sy = 0;
-    pipCtx.drawImage(videoElement, sx, sy, size, size, 0, 0, 160, 160);
+    pipCtx.drawImage(offscreenCanvas, sx, sy, size, size, 0, 0, 160, 160);
     
     // Draw Landmarks
     if (rawLandmarks) {
